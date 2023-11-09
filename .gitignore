@@ -1,0 +1,12 @@
+data/
+figs/
+docs/
+
+*.out
+*.err
+*.fa
+*.names
+*.clstr
+
+.ipynb_checkpoints/
+.DS_Store

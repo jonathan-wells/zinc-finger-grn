@@ -1,8 +1,0 @@
-setup.py
-tests/tests.py
-zfnetwork/__init__.py
-zfnetwork/grn.py
-zfnetwork/zfnetwork.egg-info/PKG-INFO
-zfnetwork/zfnetwork.egg-info/SOURCES.txt
-zfnetwork/zfnetwork.egg-info/dependency_links.txt
-zfnetwork/zfnetwork.egg-info/top_level.txt

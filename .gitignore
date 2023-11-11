@@ -10,5 +10,6 @@ docs/
 
 __pycache__/
 .egg-info
+zfnetwork.egg-info/
 .ipynb_checkpoints/
 .DS_Store

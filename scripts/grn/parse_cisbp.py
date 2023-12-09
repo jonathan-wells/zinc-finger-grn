@@ -3,9 +3,10 @@
 import sys
 from collections import defaultdict
 
-cisbp_dir = '../../data/cis-reg/CisBP_Homo_sapiens_2023_12_08_10_56_am'
 
 def parse_cisbp_metdata():
+    """Reads CisBP metadata and returns most recent motif for each KZFP"""
+    cisbp_dir = '../../data/cis-reg/CisBP_Homo_sapiens_2023_12_08_10_56_am'
     # Extract list if KZFPs
     with open('../../data/cis-reg/kzfp_list.txt') as input:
         kzfp_list = [line.strip() for line in input] 

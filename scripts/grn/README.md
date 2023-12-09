@@ -17,7 +17,16 @@ as found in hiPSCs. This was constructed according to the following protocol:
    non-redundant core database. These motifs were scanned against KZFP candidate promoter sequences
    and any TEs significantly targeted by at least one KZFP (see script for details).
 
-4. cres_to_network.py
+4. extract_zfp_targets.sh
+   In step two, TRIM28 peaks lying within the vicinity of KZFPs are associated with specific TEs.
+   However, many peaks are KZFP-associated but do not overlap a particular TE insertion. We
+   therefore assess KZFP targeting to these peaks by scanning for binding motifs. This enables
+   identification of direct KZFP -| KZFP interactions.
+
+5. parse_cisbp.py
+   Helper script that is used within step four to convert from CisBP PWM format to MEME motifs.
+
+6. cres_to_network.py
    This script provides functions that can be used to parse and combine the output of those 
    previously described, and ultimately generates a simple adjacency list that can be used to model
    a directed GRN.

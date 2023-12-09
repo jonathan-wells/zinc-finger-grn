@@ -37,11 +37,12 @@ def write_edges(znf_to_te, outfile):
                     output.write(f'{kzfp}\t{te}\n')
 
 
+
 def main():
     """Write paired edges for promoters, proximal enhancers and TRIM28 peaks."""
-    trim28_te = parse_cisreg_bed('../../data/cis-reg/kzfp_TRIM28_regions.bed', trim28=True)
-    promoter_te = parse_cisreg_bed('../../data/cis-reg/kzfp_candidate_promoters.bed', trim28=False)
-    prox_enhancer_te = parse_cisreg_bed('../../data/cis-reg/kzfp_candidate_proximal_enhancers.bed', trim28=False)
+    trim28_te = parse_cisreg_bed('../../data/cis-reg/cCRE-bed/kzfp_TRIM28_regions.bed', trim28=True)
+    promoter_te = parse_cisreg_bed('../../data/cis-reg/cCRE-bed/kzfp_candidate_promoters.bed', trim28=False)
+    prox_enhancer_te = parse_cisreg_bed('../../data/cis-reg/cCRE-bed/kzfp_candidate_proximal_enhancers.bed', trim28=False)
 
     write_edges(trim28_te, '../../data/cis-reg/kzfp_TRIM28_regions.txt')
     write_edges(promoter_te, '../../data/cis-reg/kzfp_candidate_promoters.txt')

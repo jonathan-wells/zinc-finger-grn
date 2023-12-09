@@ -68,7 +68,7 @@ awk -F '\t' '{
 ###################################################################################################
 
 # Extract promoter-like sequences from cCRE file.
-rg ';PLS' ../../data/cis-reg/ENCFF653NZY_T2T_ncbi.bed | bedtools sort > tmp_PLS.bed
+rg ';PLS' ../../data/cis-reg/cCRE-bed/ENCFF653NZY_T2T_ncbi.bed | bedtools sort > tmp_PLS.bed
 
 # Define window within which to find promoters
 bedtools slop \
@@ -96,7 +96,7 @@ bedtools intersect \
     -wb \
     -f 0.2 \
     -F 0.1 > tmp3.bed
-label_cre_te tmp3.bed > ../../data/cis-reg/kzfp_candidate_promoters.bed
+label_cre_te tmp3.bed > ../../data/cis-reg/cCRE-bed/kzfp_candidate_promoters.bed
 
 # Cleanup
 rm tmp_PLS.bed tmp{,2,3}.bed kzfp_promoter_region.bed
@@ -106,7 +106,7 @@ rm tmp_PLS.bed tmp{,2,3}.bed kzfp_promoter_region.bed
 ###################################################################################################
 
 # Extract proximal enhancer-like sequences from cCRE file.
-rg ';pELS' ../../data/cis-reg/ENCFF653NZY_T2T_ncbi.bed | bedtools sort > tmp_pELS.bed
+rg ';pELS' ../../data/cis-reg/cCRE-bed/ENCFF653NZY_T2T_ncbi.bed | bedtools sort > tmp_pELS.bed
 
 # Define window within which to find proximal enhancer-like regions
 bedtools slop \
@@ -132,7 +132,7 @@ bedtools intersect \
     -wb \
     -f 0.2 \
     -F 0.1 > tmp3.bed
-label_cre_te tmp3.bed  > ../../data/cis-reg/kzfp_candidate_proximal_enhancers.bed
+label_cre_te tmp3.bed  > ../../data/cis-reg/cCRE-bed/kzfp_candidate_proximal_enhancers.bed
 
 # Cleanup
 rm tmp_pELS.bed tmp{,2,3}.bed kzfp_extended_promoter_region.bed
@@ -151,7 +151,7 @@ bedtools slop \
 # Extract and label TRIM28-bound sites within 10kb of KZFPs
 bedtools intersect \
     -a kzfp_heterochromatin_region.bed \
-    -b ../../data/cis-reg/GSM2067350_KAP1_exo_H1_peaks_ncbi_T2T.bed \
+    -b ../../data/cis-reg/cCRE-bed/GSM2067350_KAP1_exo_H1_peaks_ncbi_T2T.bed \
     -wa \
     -wb > tmp.bed
 label_zfp_cre tmp.bed |
@@ -165,8 +165,10 @@ bedtools intersect \
     -wa \
     -wb \
     -loj \
-    -f 0.25 > tmp3.bed
-label_heterochromatin_te tmp3.bed > ../../data/cis-reg/kzfp_TRIM28_regions.bed
+    -f 0.15 \
+    -F 0.15 \
+    -e > tmp3.bed
+label_heterochromatin_te tmp3.bed > ../../data/cis-reg/cCRE-bed/kzfp_TRIM28_regions.bed
 
 # Cleanup
 rm tmp{,2,3}.bed kzfp_heterochromatin_region.bed

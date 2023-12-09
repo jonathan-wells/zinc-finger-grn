@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+####################################################################################################
+## This script KZFP-KZFP interactions by directly scanning for KZFP binding motifs within TRIM28 
+## ChIP-exo peaks. It does so for both peaks associated with a particular TE, and for peaks without
+## associated TEs.
+####################################################################################################
+
 # Extract fasta file of KZFP-associated TRIM28 peaks
 bedtools getfasta \
     -fi ~/Genomes/Mammalia/Hominoidea/GCF_009914755.1/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna \

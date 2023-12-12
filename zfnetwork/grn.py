@@ -11,7 +11,8 @@ class Node:
     Used to represent a single gene, transposable element or dimensionless unit of heterochromatin.
     """
     def __init__(self, 
-                 label, 
+                 label,
+                 ntype=None,
                  pop=0.0, 
                  beta=1.0, 
                  gamma=0.1, 
@@ -23,7 +24,8 @@ class Node:
         """Node constructor
 
         Args:
-            label: type of node
+            label: name of noded
+            ntype: type of node, from 'TF', 'TE' or 'ZF'
             pop: current population of the node
             beta: maximum production rate associated with this node
             gamma: degradation rate parameter
@@ -37,7 +39,10 @@ class Node:
 
         """
         self.label = label
-        self.ntype = self.label.split('_')[0]
+        if ntype == None:
+            self.ntype = self.label.split('_')[0]
+        else:
+            self.ntype = ntype
         self.pop = pop
         self.beta = beta
         self.gamma = gamma
@@ -99,7 +104,7 @@ class Edge:
 class ZincFingerGRN:
     """Representation of a gene regulatory network including TFs, ZFs and TEs."""
 
-    def __init__(self, n_tfs, n_zfs, n_tes):
+    def __init__(self, n_tfs=0, n_zfs=0, n_tes=0):
         """Network constructor
 
         Args:
@@ -116,8 +121,27 @@ class ZincFingerGRN:
         self.tes = [Node(f'TE_{i}') for i in range(self.n_tes)]
         self.het = []
         self.edges = []
-    
+
+    def from_edge_list(edge_list, node_types):
+        """Constructs network from list of edges.
+        
+        Args:
+            edge_list: list of directed edges from A -> B, represented as tuples (A, B)
+            node_types: dictionary mapping each node label to its type, from 'TF', 'TE' or 'ZF'.
+        """
+        for node_i_label, node_j_label in edge_list:
+            nit, njt = node_types[node_i_label], node_types[node_j_label]
+            node_i = Node(node_i_label, nit)
+            node_j = Node(node_j_label, njt)
+            if nit == 'TF':
+                self.add_tf_edge(node_i, node_j)
+            elif nit == 'ZF':
+                self.add_zf_edge(node_i, node_j)
+            else:
+                raise ValueError(f'Parent node must be type TF or ZF. {node_i_label} is type {nit}')
+         
     def add_tf_edge(self, node_i, node_j):
+        """Adds an edge from a TF to something else."""
         node_i.add_edge(node_j)
         self.edges.append(Edge(node_i, node_j))
         

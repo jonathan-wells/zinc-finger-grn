@@ -79,7 +79,8 @@ def write_edges(znf_to_te, outfile):
                     output.write(f'{kzfp}\t{te}\n')
 
 
-def build_final_adjacency_list():
+def build_final_edge_list():
+    """Takes output from various sources to compile list of edges for ZF Network"""
     tf2target = parse_tf_fimo('../../data/cis-reg/kzfp-te-fimo/fimo.tsv', 0.01)
 
     kzfp2te = parse_kzfp_targets(0.0001)
@@ -110,7 +111,7 @@ def build_final_adjacency_list():
                     output.write(f'{key}\t{val}\n')
      
 def main():
-    build_final_adjacency_list()
+    build_final_edge_list()
 
 if __name__ == '__main__':
     main()

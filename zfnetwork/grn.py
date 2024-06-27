@@ -117,29 +117,44 @@ class ZincFingerGRN:
         """
         self.n_tfs, self.n_zfs, self.n_tes = n_tfs, n_zfs, n_tes
         self.tfs = [Node(f'TF_{i}', mode='activator') for i in range(self.n_tfs)]
+        # ZF is a repressor but "activates" heterochromatin
         self.zfs = [Node(f'ZF_{i}', mode='activator') for i in range(self.n_zfs)]
         self.tes = [Node(f'TE_{i}') for i in range(self.n_tes)]
         self.het = []
         self.edges = []
 
-    def from_edge_list(edge_list, node_types):
+    def from_edge_list(self, edge_list, node_types):
         """Constructs network from list of edges.
         
         Args:
             edge_list: list of directed edges from A -> B, represented as tuples (A, B)
             node_types: dictionary mapping each node label to its type, from 'TF', 'TE' or 'ZF'.
         """
+        node_labels = set(label for pair in edge_list for label in pair)
+        nodes = {label: Node(label, node_types[label])  for label in node_labels}
         for node_i_label, node_j_label in edge_list:
-            nit, njt = node_types[node_i_label], node_types[node_j_label]
-            node_i = Node(node_i_label, nit)
-            node_j = Node(node_j_label, njt)
-            if nit == 'TF':
+            node_i, node_j = nodes[node_i_label], nodes[node_j_label]
+            
+            for node in node_i, node_j:
+                if node.ntype == 'TF' and node.label not in [n.label for n in self.tfs]:
+                    node.mode = 'activator'
+                    self.tfs.append(node)
+                    self.n_tfs += 1
+                elif node.ntype == 'ZF' and node.label not in [n.label for n in self.zfs]:
+                    node.mode = 'activator'
+                    self.zfs.append(node)
+                    self.n_zfs += 1
+                elif node.ntype == 'TE' and node.label not in [n.label for n in self.tes]:
+                    self.tes.append(node)
+                    self.n_tes += 1
+
+            if node_i.ntype == 'TF':
                 self.add_tf_edge(node_i, node_j)
-            elif nit == 'ZF':
+            elif node_i.ntype == 'ZF':
                 self.add_zf_edge(node_i, node_j)
             else:
-                raise ValueError(f'Parent node must be type TF or ZF. {node_i_label} is type {nit}')
-         
+                raise ValueError(f'Node_i must be either TF or ZF')
+
     def add_tf_edge(self, node_i, node_j):
         """Adds an edge from a TF to something else."""
         node_i.add_edge(node_j)
@@ -226,16 +241,25 @@ class ZincFingerGRN:
             for edge in tf_node.output:
                 edges.append((edge.x.label, edge.y.label))
         return edges
+    
+    def to_digraph(self):
+        G = nx.DiGraph()
+        G.add_nodes_from([n.label for n in self.tfs + self.zfs + self.tes])
+        G.add_edges_from(self._extract_tf_edges() + self._extract_zf_edges())
+        return G
 
     def draw(self):
-        """Draw graphical represation of the GRN"""
+        """Draw graphical representation of the GRN"""
         G = nx.DiGraph()
         G.add_nodes_from([n.label for n in self.tfs + self.zfs + self.tes])
         G.add_edges_from(self._extract_tf_edges() + self._extract_zf_edges())
         layout = nx.random_layout(G)
-        tf_nodes = [n for n in G.nodes if n.startswith('TF')]
-        zf_nodes = [n for n in G.nodes if n.startswith('ZF')]
-        te_nodes = [n for n in G.nodes if n.startswith('TE')]
+        # tf_nodes = [n for n in G.nodes if n.ntyVpe == 'TF']
+        # zf_nodes = [n for n in G.nodes if n.ntype == 'ZF']
+        # te_nodes = [n for n in G.nodes if n.ntype == 'TE']
+        tf_nodes = [node.label for node in self.tfs]
+        zf_nodes = [node.label for node in self.zfs]
+        te_nodes = [node.label for node in self.tes]
         nx.draw_networkx_nodes(G, nodelist=tf_nodes, pos=layout, node_color='orange',
                                edgecolors='black')
         nx.draw_networkx_nodes(G, nodelist=zf_nodes, pos=layout, node_color='dodgerblue',
@@ -259,8 +283,14 @@ class ZincFingerGRN:
 
 
 if __name__ == '__main__':
-    grn = ZincFingerGRN(5, 15, 15)
-    grn.generate_erdos_renyi(0.33)
+    # grn = ZincFingerGRN(5, 15, 15)
+    # grn.generate_erdos_renyi(0.33)
+    # grn.draw()
+    node_types = {'1': 'ZF', '2': 'ZF', '3': 'ZF', '5': 'TE', '6': 'TE', '7': 'TE', '10': 'TF'}
+    edges = [(1, 2), (2, 3), (3, 1), (3, 5), (1, 6), (2, 7), (10, 1), (10, 2), (10, 5)]
+    edges = [(str(x), str(y)) for (x, y) in edges]
+    zf_grn = ZincFingerGRN()
+    zf_grn.from_edge_list(edges, node_types)
     grn.draw()
 
 

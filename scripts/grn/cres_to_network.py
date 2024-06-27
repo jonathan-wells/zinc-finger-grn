@@ -46,9 +46,27 @@ def parse_kzfp_targets(qthresh):
                 kzfp_to_te[kzfp].add(te)
     return kzfp_to_te
 
-def parse_tf_fimo(fimofile, qthresh):
+def parse_tf_te_fimo(fimofile, qthresh):
     tf_to_target = {}
-    zfp_pattern = re.compile(r'([\w-]+);.+')
+    with open(fimofile) as input:
+        header = input.readline()
+        for line in input:
+            if line == '\n':
+                break
+            line = line.strip().split('\t')
+            tf = line[1]
+            target = line[2]
+            qvalue = float(line[8])
+            if qvalue > qthresh:
+                continue
+            if tf not in tf_to_target:
+                tf_to_target[tf] = set()
+            tf_to_target[tf].add(target)
+        return tf_to_target
+
+def parse_tf_kzfp_fimo(fimofile, qthresh):
+    tf_to_target = {}
+    zfp_pattern = re.compile(r'[\w-]+;PLS;(.+)?;')
     with open(fimofile) as input:
         header = input.readline()
         for line in input:
@@ -81,8 +99,8 @@ def write_edges(znf_to_te, outfile):
 
 def build_final_edge_list():
     """Takes output from various sources to compile list of edges for ZF Network"""
-    tf2target = parse_tf_fimo('../../data/cis-reg/kzfp-te-fimo/fimo.tsv', 0.01)
-
+    tf2te = parse_tf_te_fimo('../../data/cis-reg/te-fimo/fimo.tsv', 0.01)
+    tf2kzfp = parse_tf_kzfp_fimo('../../data/cis-reg/kzfp-fimo/fimo.tsv', 0.01)
     kzfp2te = parse_kzfp_targets(0.0001)
     te2kzfp = {}
     for kzfp, tes in kzfp2te.items():
@@ -104,8 +122,8 @@ def build_final_edge_list():
                     kzfp2kzfp[kzfp_a] = set([kzfp_b])
                 else:
                     kzfp2kzfp[kzfp_a].add(kzfp_b)
-    with open('../../data/cis-reg/final_adjacency_list.txt', 'w') as output:
-        for dictionary in (tf2target, kzfp2te, kzfp2kzfp):
+    with open('../../data/cis-reg/final_edge_list.txt', 'w') as output:
+        for dictionary in (tf2te, tf2kzfp, kzfp2te, kzfp2kzfp):
             for key, values in dictionary.items():
                 for val in values:
                     output.write(f'{key}\t{val}\n')

@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import grn
+from zfnetwork import grn
 
 def sample_discrete(probabilities):
     """Randomly sample an index with probability given by probs.""" 
@@ -92,11 +92,11 @@ def gillespie_ssa(zf_grn, time_points, replicates):
 def plot_data(time_log, pop_log, zf_grn):
     fig, ax = plt.subplots(figsize=(10, 7))
     for i, node in enumerate(zf_grn.nodes):
-        if node.label.startswith('TF'):
+        if node.ntype == 'TF':
             color = 'orange'
-        elif node.label.startswith('ZF'):
+        elif node.ntype == 'ZF':
             color = 'dodgerblue'
-        elif node.label.startswith('TE'):
+        elif node.ntype == 'TE':
             color = 'grey'
         else:
             continue
@@ -111,9 +111,19 @@ def plot_data(time_log, pop_log, zf_grn):
     plt.show()
 
 def main():
-    zf_grn = grn.ZincFingerGRN(5, 15, 15)
-    zf_grn.generate_erdos_renyi(0.1)
-    zf_grn.nodes[0].pop = 1
+    # zf_grn = grn.ZincFingerGRN(5, 15, 15)
+    # zf_grn.generate_erdos_renyi(0.1)
+    # zf_grn.nodes[0].pop = 1
+    # tlog, plog = gillespie_ssa(zf_grn, 1500, 10)
+    # plot_data(tlog, plog, zf_grn)
+
+    node_types = {'1': 'ZF', '2': 'ZF', '3': 'ZF', '5': 'TE', '6': 'TE', '7': 'TE', '10': 'TF'}
+    edges = [(1, 2), (2, 3), (3, 1), (3, 5), (1, 6), (2, 7), (10, 1), (10, 2), (10, 5)]
+    edges = [(str(x), str(y)) for (x, y) in edges]
+    zf_grn = grn.ZincFingerGRN()
+    zf_grn.from_edge_list(edges, node_types)
+    for tf in zf_grn.tfs:
+        tf.pop += 5
     tlog, plog = gillespie_ssa(zf_grn, 1500, 100)
     plot_data(tlog, plog, zf_grn)
 

@@ -37,23 +37,34 @@ cat $(cat meme_names.txt) > ../../data/cis-reg/ipsc_motifs.meme
     genome_background.bg
 
 # Extract TEs targeted by at least one KZFP and combine with KZFP candidate promoters
-if [ -f fimo_sequences.txt ]; then
-    rm fimo_sequences.txt
+if [ -f te_fimo_sequences.txt ]; then
+    rm te_fimo_sequences.txt
 fi
+if [ -f kzfp_fimo_sequences.txt ]; then
+    rm kzfp_fimo_sequences.txt
+fi
+
 for file in $(ls ../../data/cis-reg/enrich_kzfp_perSubfam/*te_subfam.txt); do
-    awk -v p="$PADTHRESH" '{ if (($2 <= p) && ($3 < p) && ($4 < p)) print $1 }' $file >> fimo_sequences.txt
+    awk -v p="$PADTHRESH" '{ if (($2 <= p) && ($3 < p) && ($4 < p)) print $1 }' $file >> te_fimo_sequences.txt
 done
-sort -u fimo_sequences.txt > tmp; mv tmp fimo_sequences.txt
-seqkit grep -f fimo_sequences.txt  ../../data/genome/ucsc_hg38_reps.fa > fimo_sequences.fa
-cat ../../data/cis-reg/kzfp_candidate_promoters.fa >> fimo_sequences.fa
+sort -u te_fimo_sequences.txt > tmp; mv tmp te_fimo_sequences.txt
+seqkit grep -f te_fimo_sequences.txt  ../../data/genome/ucsc_hg38_reps.fa > te_fimo_sequences.fa
+
+cat ../../data/cis-reg/kzfp_candidate_promoters.fa > kzfp_fimo_sequences.fa
 
 # Run FIMO to identify expressed iPSC TF motifs against TE and KZFP sequences
 fimo \
-    -oc ../../data/cis-reg/kzfp-te-fimo \
+    -oc ../../data/cis-reg/te-fimo \
     -bfile genome_background.bg \
     ../../data/cis-reg/ipsc_motifs.meme \
-    fimo_sequences.fa
+    te_fimo_sequences.fa
+fimo \
+    -oc ../../data/cis-reg/kzfp-fimo \
+    -bfile genome_background.bg \
+    ../../data/cis-reg/ipsc_motifs.meme \
+    kzfp_fimo_sequences.fa
 
-rm genome_background.bg
-rm fimo_sequences.{fa,txt}
-rm motif_dict.txt search_names.txt mincount_names.txt omit_kzfps.txt meme_names.txt
+# rm genome_background.bg
+# rm te_fimo_sequences.{fa,txt}
+# rm kzfp_fimo_sequences.{fa,txt}
+# rm motif_dict.txt search_names.txt mincount_names.txt omit_kzfps.txt meme_names.txt

@@ -3,11 +3,13 @@ figs/
 docs/
 
 *.out
+*.txt
 *.err
 *.fa
 *.names
 *.clstr
 
+build/
 __pycache__/
 .egg-info
 zfnetwork.egg-info/

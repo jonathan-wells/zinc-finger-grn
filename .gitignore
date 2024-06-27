@@ -8,6 +8,7 @@ docs/
 *.fa
 *.names
 *.clstr
+*.pdf
 
 build/
 __pycache__/

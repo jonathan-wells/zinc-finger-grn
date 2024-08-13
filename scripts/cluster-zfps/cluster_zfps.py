@@ -13,15 +13,17 @@ format.
 
 class ZFGenome:
 
-    def __init__(self, zf_bedfile, genomefile, use_midpoint=True):
+    def __init__(self, zf_bedfile, genomefile, use_midpoint=True, rename=True):
         self.genomefile = genomefile
         self._idx = 0
         self._chroms = set()
         self._clust_idx = 0
         self.zf_bed = pb.BedTool(zf_bedfile)
-        self.zf_bed = self.zf_bed.each(self._rename)
         if use_midpoint:
             self.zf_bed = self.zf_bed.each(self._extract_midpoint)
+        if rename:
+            self.zf_bed = self.zf_bed.each(self._rename)
+        self.zf_bed = self.zf_bed.sort()
 
     def _rename(self, feature):
         feature.name = f'{feature.name}_{self._idx}'
@@ -60,20 +62,22 @@ class ZFGenome:
                                        o=('count', 'count', 'count', 'collapse'))
         merged_bed = merged_bed.each(self._parse_cluster)
         self.merged_bed = merged_bed.slop(b=margin, g=self.genomefile)
+        
+        return self.merged_bed
             
     def __repr__(self):
         return str(self.merged_bed)
 
 if __name__ == '__main__':
 
-    max_inter_znf_dist = 118261 # 75th percentile
-    use_midpoint = False
+    max_inter_znf_dist = 118000 # 75th percentile
+    use_midpoint = True
 
     with open('../../data/parsed_metazoans.out') as infile:
         for line in infile:
             species = line.split('\t')[0]
             assembly_type = line.strip().split('\t')[-1]
-            if assembly_type not in ['Chromosome']:
+            if assembly_type not in ['Chromosome', 'Scaffold']:
                 continue
             try:
                 print(species)

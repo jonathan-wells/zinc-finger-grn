@@ -16,8 +16,6 @@ class Node:
                  pop=0.0, 
                  beta=1.0, 
                  gamma=0.1, 
-                 k_xy=1.0, 
-                 n=2.0, 
                  mode=None,
                  input=None, 
                  output=None):
@@ -29,7 +27,6 @@ class Node:
             pop: current population of the node
             beta: maximum production rate associated with this node
             gamma: degradation rate parameter
-            n: hill function cooperativity coefficient
             mode: activator or repressor
             input: list of nodes that regulate this node
             output: list of nodes regulated by this node
@@ -39,29 +36,25 @@ class Node:
 
         """
         self.label = label
-        if ntype == None:
-            self.ntype = self.label.split('_')[0]
-        else:
-            self.ntype = ntype
+        self.ntype = ntype
         self.pop = pop
         self.beta = beta
         self.gamma = gamma
-        self.k_xy = k_xy
-        self.n = n
         self.mode = mode
-        if input is None:
-            self.input = []
-        else:
+        if input:
             self.input = input
-        if output is None:
-            self.output = []
         else:
+            self.input = []
+        if output:
             self.output = output
+        else:
+            self.output = []
 
-    def add_edge(self, other, k_xy=1.0):
+    def add_edge(self, other, k_xy=1.0, n=2.0):
         """Add directed edge between self and other node"""
-        self.output.append(Edge(self, other, k_xy=k_xy))
-        other.input.append(Edge(self, other, k_xy=k_xy))
+        edge = Edge(self, other, k_xy=k_xy, n=n)
+        self.output.append(edge)
+        other.input.append(edge)
 
     @property
     def degree(self):
@@ -69,36 +62,45 @@ class Node:
         return len(self.input) + len(self.output)
     
     def __repr__(self):
-        return self.label
+        data = [f'{self.label}',
+                f'\tntype: {self.ntype}',
+                f'\tpop: {self.pop}',
+                f'\tbeta: {self.beta}',
+                f'\tgamma: {self.gamma}',
+                f'\tmode: {self.mode}',
+                f'\tinput: {self.input}',
+                f'\toutput: {self.output}']
+        return '\n'.join(data)
 
 
 class Edge:
     """Edge between two Nodes."""
 
-    def __init__(self, node_x, node_y, k_xy=1.0):
+    def __init__(self, node_x, node_y, k_xy=1.0, n=2.0):
         """Edge constructor
 
         Args:
             node_x: starting node
             node_y: ending node
             k_xy: hill function activation threshold - amount of x needed to activate y
-
+            n: hill function cooperativity coefficient
         """
         self.x = node_x
         self.y = node_y
         self.k = k_xy
+        self.n = n
     
     def hill(self):
-        """Return output of Hill equation for node_x acting on node_y"""
+        """Return output of Hill equation for node_x acting on node_y."""
         if self.x.mode == 'activator':
-            return (self.y.beta*self.x.pop**self.x.n)/(self.k**self.x.n + self.x.pop**self.x.n)
+            return (self.y.beta*self.x.pop**self.n)/(self.k**self.n + self.x.pop**self.n)
         elif self.x.mode == 'repressor':
-            return self.y.beta/(1 + (self.x.pop/self.k)**self.x.n)
+            return self.y.beta/(1.0 + (self.x.pop/self.k)**self.n)
         else:
             return None
 
     def __repr__(self):
-        return f'{self.x}\t{self.y}'
+        return f'({self.x.label}, {self.y.label})'
 
 
 class ZincFingerGRN:
@@ -158,18 +160,33 @@ class ZincFingerGRN:
     def add_tf_edge(self, node_i, node_j):
         """Adds an edge from a TF to something else."""
         node_i.add_edge(node_j)
-        self.edges.append(Edge(node_i, node_j))
+        self.edges.append(node_i.output[-1])
         
     def add_zf_edge(self, node_i, node_j):
         """Adds an edge from a ZF to something else, via heterochromatin unit."""
-        het_count = len(self.het)
-        self.het.append(Node(f'Het_{het_count}', beta=0.1, gamma=0.01, mode='repressor'))
+        het_count = len(self.het) + 1
+        self.het.append(Node(f'Het_{het_count}', ntype='Het', beta=0.1, gamma=0.01, mode='repressor'))
+        
         node_i.add_edge(self.het[-1])
+        self.edges.append(node_i.output[-1])
+        
         self.het[-1].add_edge(node_j, k_xy=1)
-        self.edges.append(Edge(node_i, self.het[-1]))
-        self.edges.append(Edge(self.het[-1], node_j, k_xy=1))
+        self.edges.append(node_j.input[-1])
 
     def generate_erdos_renyi(self, p):
+        """Generate Erdos-Renyi-like graph.
+
+        Edges between nodeds are generated with uniform probability, with the contstraint that edges
+        must follow the usual rules for TF/ZF/TE behavior. E.g. No TEs acting as TFs. 
+        """
+        # Reinit graph if edges already present
+        self.edges = []
+        self.het = []
+        for node in self.nodes:
+            node.input = []
+            node.output = []
+        
+        # Generate Erdos-Renyi graph
         for node_i in self.tfs + self.zfs:
             for node_j in self.zfs + self.tes:
                 u = np.random.uniform()
@@ -178,50 +195,6 @@ class ZincFingerGRN:
                         self.add_tf_edge(node_i, node_j)
                     elif node_i.ntype == 'ZF':
                         self.add_zf_edge(node_i, node_j)
-
-
-    def generate_random_edges(self):
-        """Randomly connect edges between TFs, ZFs and tes
-        
-        This should be done in a biologically plausible manner, so as to realistically simulate
-        different potential GRN architectures.
-        """
-        # Generate edges from TFs to ZFs and TEs
-        for node_x in self.tfs:
-            p = 0.75 # Need a better way of doing this later
-            for node_y in self.zfs:
-                u = np.random.uniform(0.0, 1.0)
-                if u <= p:
-                    node_x.add_edge(node_y)
-                    self.edges.append(Edge(node_x, node_y))
-            for node_z in self.tes:
-                u = np.random.uniform(0.0, 1.0)
-                if u <= p:
-                    node_x.add_edge(node_z)
-                    self.edges.append(Edge(node_x, node_z))
-
-        het_count = 0
-        for node_x in self.zfs:
-            p_zf = 1/self.n_zfs
-            for node_y in self.zfs:
-                u = np.random.uniform(0.0, 1.0)
-                if u <= p_zf:
-                    self.het.append(Node(f'Het_{het_count}', beta=0.1, gamma=0.01, mode='repressor'))
-                    node_x.add_edge(self.het[-1])
-                    self.het[-1].add_edge(node_y, k_xy=1)
-                    self.edges.append(Edge(node_x, self.het[-1]))
-                    self.edges.append(Edge(self.het[-1], node_y, k_xy=1))
-                    het_count += 1
-            p_te = 2/self.n_tes # Need a better way of doing this later
-            for node_z in self.tes:
-                u = np.random.uniform(0.0, 1.0)
-                if u <= p_te:
-                    self.het.append(Node(f'Het_{het_count}', beta=0.1, gamma=0.01, mode='repressor'))
-                    node_x.add_edge(self.het[-1])
-                    self.het[-1].add_edge(node_z, k_xy=1)
-                    self.edges.append(Edge(node_x, self.het[-1]))
-                    self.edges.append(Edge(self.het[-1], node_z, k_xy=1))
-                    het_count += 1
     
     @property
     def nodes(self):
@@ -243,6 +216,7 @@ class ZincFingerGRN:
         return edges
     
     def to_digraph(self):
+        """Converts ZFNetwork to Networkx Digraph"""
         G = nx.DiGraph()
         G.add_nodes_from([n.label for n in self.tfs + self.zfs + self.tes])
         G.add_edges_from(self._extract_tf_edges() + self._extract_zf_edges())
@@ -254,9 +228,6 @@ class ZincFingerGRN:
         G.add_nodes_from([n.label for n in self.tfs + self.zfs + self.tes])
         G.add_edges_from(self._extract_tf_edges() + self._extract_zf_edges())
         layout = nx.random_layout(G)
-        # tf_nodes = [n for n in G.nodes if n.ntyVpe == 'TF']
-        # zf_nodes = [n for n in G.nodes if n.ntype == 'ZF']
-        # te_nodes = [n for n in G.nodes if n.ntype == 'TE']
         tf_nodes = [node.label for node in self.tfs]
         zf_nodes = [node.label for node in self.zfs]
         te_nodes = [node.label for node in self.tes]
@@ -283,14 +254,14 @@ class ZincFingerGRN:
 
 
 if __name__ == '__main__':
-    # grn = ZincFingerGRN(5, 15, 15)
-    # grn.generate_erdos_renyi(0.33)
-    # grn.draw()
-    node_types = {'1': 'ZF', '2': 'ZF', '3': 'ZF', '5': 'TE', '6': 'TE', '7': 'TE', '10': 'TF'}
-    edges = [(1, 2), (2, 3), (3, 1), (3, 5), (1, 6), (2, 7), (10, 1), (10, 2), (10, 5)]
-    edges = [(str(x), str(y)) for (x, y) in edges]
+    node_types = {1: 'TF', 2: 'ZF', 3: 'TE'}
+    edges = [(1, 2), (1, 3), (2, 3)]
+    
     zf_grn = ZincFingerGRN()
     zf_grn.from_edge_list(edges, node_types)
-    grn.draw()
+    for tf in zf_grn.tfs:
+        tf.pop += 5
+    for node in zf_grn.nodes:
+        print(node)
 
 

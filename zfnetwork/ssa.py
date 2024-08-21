@@ -1,131 +1,175 @@
 #!/usr/bin/env python3
 
+from os import error
 import numpy as np
 import matplotlib.pyplot as plt
 from zfnetwork import grn
 
-def sample_discrete(probabilities):
-    """Randomly sample an index with probability given by probs.""" 
-    u = np.random.uniform()
-    # Find index of item in probabilities which u is bounded by
-    i = 0
-    prob_sum = 0.0
-    while prob_sum < u:
-        prob_sum += probabilities[i]
-        i += 1
-    return i - 1
 
-def znf_te_propensity(propensities, zf_grn):
-    """Updates an array of propensities given a gene regulatory network.
+class GillespieSSA:
 
-    Args:
-        propensities: an array of propensities for possible events
-        zf_grn: an instance of ZincFingerGRN
-    """
+    def __init__(self, zf_grn):
+        self.zf_grn = zf_grn
+        self.n_nodes = len(zf_grn.nodes)
+        self.propensities = np.zeros(2*self.n_nodes)
+        self.update_propensities()
+        # Generate lookup table for possible events for each node (+1, -1)
+        self.events = np.zeros((self.propensities.size, self.n_nodes))
+        j = 0
+        for i in range(0, self.events.shape[0], 2):
+            self.events[i, j] = 1
+            self.events[i+1, j] = -1
+            j += 1
 
-    for i, node in enumerate(zf_grn.nodes):
-        idx = 2*i # Accounting for 2 propensities per node
-    
-        # Production rate calculated as product of Hill functions. This is equivalent to AND logic
-        production_rate = 1.0
+    def step_tf(self, pop=None, beta=None, gamma=None):
+        for tf in self.zf_grn.tfs:
+            if pop:
+                tf.pop = pop
+            if beta:
+                tf.beta = beta
+            if gamma:
+                tf.gamma = gamma
+
+    def sample_discrete(self, probabilities):
+        """Randomly sample an index with probability given by probs.""" 
+        u = np.random.uniform()
+        # Find index of item in probabilities which u is bounded by
+        i = 0
+        prob_sum = 0.0
+        while prob_sum < u:
+            prob_sum += probabilities[i]
+            i += 1
+        return i - 1
+
+    def update_propensities(self):
+        """Updates propensities of gene regulatory network."""
+
+        for i, node in enumerate(self.zf_grn.nodes):
+            idx = 2*i # Accounting for 2 propensities per node
         
-        for edge in node.input:
-            production_rate *= edge.hill()
-        degradation_rate = node.gamma*node.pop
+            if node.ntype == 'TF':
+                production_rate = node.beta
+            elif len(node.input) == 0:
+                production_rate = 0.0
+            else:
+                # Production rate calculated as product of Hill functions. This is equivalent to AND logic
+                production_rate = np.array([edge.hill() for edge in node.input]).prod()
+            degradation_rate = node.gamma*node.pop
 
-        propensities[idx] = production_rate
-        propensities[idx + 1] = degradation_rate
+            self.propensities[idx] = production_rate
+            self.propensities[idx + 1] = degradation_rate
 
-def gillespie_draw(propensities):
-    """Draws an event and reaction time according to propensities.
+    def gillespie_draw(self):
+        """Draws an event and reaction time according to propensities.
 
-    Args:
-        propensities:  an array of propensities for possible events
+        Returns:
+            event: the relevant index of the event
+            tau: the time interval between this event and previous
+        """
+        propsum = self.propensities.sum()
+        tau = np.random.exponential(scale=1.0/propsum)
+        probabilities = self.propensities/propsum
+        event_idx = self.sample_discrete(probabilities)
+        return event_idx, tau
 
-    Returns:
-        event: the relevant index of the event
-        tau: the time interval between this event and previous
-    """
-    propsum = propensities.sum()
-    tau = np.random.exponential(scale=1.0/propsum)
-    probabilities = propensities/propsum
-    event_idx = sample_discrete(probabilities)
-    return event_idx, tau
 
-def gillespie_ssa(zf_grn, time_points, replicates):
-    """Run Gillespie stochastic simulation algorithm."""
+    def gillespie_ssa(self, duration, user_events={}):
+        """Run Gillespie stochastic simulation algorithm.
+        
+        Arguments:
+            duration: the duration of the simulation.
+            events: a dict mapping from time points to events, where an event is a function that
+                will be called.
 
-    # Initialize and update propensities array
-    propensities = np.zeros(2*len(zf_grn.nodes))
-    znf_te_propensity(propensities, zf_grn)
+        Returns:
+            time_log: array of time steps from t0 to t0+duration
+            pop_log: array of population records for each node
+        """
+
+        initial_state = [node.pop for node in self.zf_grn.nodes]
+        time_log = np.zeros(duration)
+        pop_log = np.zeros((duration, self.n_nodes))
+        pop_log[0, :] = initial_state
     
-    # Generate lookup table for possible changes in population to each node
-    events = np.zeros((propensities.size, len(zf_grn.nodes)))
-    j = 0
-    for i in range(0, events.shape[0], 2):
-        events[i, j] = 1
-        events[i+1, j] = -1
-        j += 1
-    
-    # Initialize time and population storage arrays
-    time_log = np.zeros((replicates, time_points))
-    pop_log = np.zeros((replicates, time_points, len(zf_grn.nodes)))
-    pop_log[:, 0, :] = np.array([node.pop for node in zf_grn.nodes]) 
-    
-    initial_state = pop_log[0, 0, :].copy()
-    for rep in range(replicates):
-        if rep % 5 == 0:
-            print(f'rep: {rep}')
-        for i, node in enumerate(zf_grn.nodes):
-            node.pop = initial_state[i]
         # Run Gillespie SSA loop
-        for t in range(1, time_points):
-            event_idx, tau = gillespie_draw(propensities)
-            time_log[rep, t] = time_log[rep, t-1] + tau
-            for j, node in enumerate(zf_grn.nodes):
-                node.pop += events[event_idx, j]
-                pop_log[rep, t, j] = node.pop
-            znf_te_propensity(propensities, zf_grn)
+        t, t_idx = 0, 1
+        while t_idx < duration:
+            
+            # Call user events
+            user_events.get(t_idx, lambda: None)()
+            
 
-    return time_log, pop_log
+            event_idx, tau = self.gillespie_draw()
+            t += tau
+            for j, node in enumerate(self.zf_grn.nodes):
+                node.pop += self.events[event_idx, j]
+            self.update_propensities()
+            
+            if t < t_idx:
+                continue
 
-def plot_data(time_log, pop_log, zf_grn):
-    fig, ax = plt.subplots(figsize=(10, 7))
-    for i, node in enumerate(zf_grn.nodes):
-        if node.ntype == 'TF':
-            color = 'orange'
-        elif node.ntype == 'ZF':
-            color = 'dodgerblue'
-        elif node.ntype == 'TE':
-            color = 'grey'
-        else:
-            continue
-            # color = 'lightgrey'
-        # for rep in range(pop_log.shape[0])[:5]:
-        #     plt.plot(time_log[rep, :], pop_log[rep, :, i], color=color, lw=0.3)
-        plt.plot(time_log.mean(axis=0), pop_log[:, :, i].mean(axis=0), color=color)
-    ax.set_xlabel('time')
-    ax.set_ylabel('counts')
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    plt.show()
+            for _ in range(int(np.ceil(t-t_idx))):
+                if t_idx >= duration:
+                    break
+                pop_log[t_idx] = [node.pop for node in self.zf_grn.nodes]
+                time_log[t_idx] = time_log[t_idx-1] + 1
+                t_idx += 1
+
+        return time_log, pop_log
+
+    def run(self, duration, replicates, user_events={}):
+        """Run Gillespie stochastic simulation algorithm."""
+
+        # Initialize time and population storage arrays
+        initial_state = [node.pop for node in self.zf_grn.nodes]
+
+        time_log = np.zeros((replicates, duration))
+        pop_log = np.zeros((replicates, duration, self.n_nodes))
+        
+        for rep in range(replicates):
+            if rep % 5 == 0:
+                print(f'rep: {rep}', end='\r')
+            
+            # Reset node populations to original values
+            for i, node in enumerate(self.zf_grn.nodes):
+                node.pop = initial_state[i]
+
+            tlog, plog = self.gillespie_ssa(duration, user_events)
+            time_log[rep, :] = tlog
+            pop_log[rep, :, :] = plog
+        return time_log, pop_log
+
+    def plot_data(time_log, pop_log, zf_grn):
+        fig, ax = plt.subplots(figsize=(10, 7))
+        for i, node in enumerate(zf_grn.nodes):
+            if node.ntype == 'TF':
+                color = 'orange'
+            elif node.ntype == 'ZF':
+                color = 'dodgerblue'
+            elif node.ntype == 'TE':
+                color = 'grey'
+            else:
+                continue
+                # color = 'lightgrey'
+            # for rep in range(pop_log.shape[0])[:5]:
+            #     plt.plot(time_log[rep, :], pop_log[rep, :, i], color=color, lw=0.3)
+            plt.plot(time_log.mean(axis=0), pop_log[:, :, i].mean(axis=0), color=color)
+        ax.set_xlabel('time')
+        ax.set_ylabel('counts')
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        plt.show()
 
 def main():
-    # zf_grn = grn.ZincFingerGRN(5, 15, 15)
-    # zf_grn.generate_erdos_renyi(0.1)
-    # zf_grn.nodes[0].pop = 1
-    # tlog, plog = gillespie_ssa(zf_grn, 1500, 10)
-    # plot_data(tlog, plog, zf_grn)
-
-    node_types = {'1': 'ZF', '2': 'ZF', '3': 'ZF', '5': 'TE', '6': 'TE', '7': 'TE', '10': 'TF'}
-    edges = [(1, 2), (2, 3), (3, 1), (3, 5), (1, 6), (2, 7), (10, 1), (10, 2), (10, 5)]
-    edges = [(str(x), str(y)) for (x, y) in edges]
+    node_types = {1: 'TF', 2: 'ZF', 3: 'TE'}
+    edges = [(1, 2), (1, 3), (2, 3)]
     zf_grn = grn.ZincFingerGRN()
     zf_grn.from_edge_list(edges, node_types)
     for tf in zf_grn.tfs:
-        tf.pop += 5
-    tlog, plog = gillespie_ssa(zf_grn, 1500, 100)
-    plot_data(tlog, plog, zf_grn)
+        tf.pop += 10
+    
+    simulation = GillespieSSA(zf_grn)
+    t, p = simulation.run(200, 1, {100: lambda: simulation.step_tf(pop=1, beta=0.1)})
 
 if __name__ == '__main__':
     main()

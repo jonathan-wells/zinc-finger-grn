@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from zfnetwork import grn, ssa
 import unittest
 
@@ -8,13 +6,25 @@ class TestNode(unittest.TestCase):
 
     a = grn.Node('A')
     b = grn.Node('B')
-    a.add_edge(b)
+    a.add_edge(b, k_xy=1.0, n=2.0)
 
     def test_edge_creation(self):
         self.assertEqual(len(self.a.input), 0)
         self.assertEqual(len(self.a.output), 1)
         self.assertEqual(len(self.b.input), 1)
         self.assertEqual(len(self.b.output), 0)
+    
+    def test_add_edge(self):
+        """Assert that Edge is correctly added to A output and B input, and that parameter
+        assignments are correctly distributed across both nodes."""
+        self.assertEqual(self.a.output[0].k, 1.0)
+        self.assertEqual(self.b.input[0].k, 1.0)
+        self.a.output[0].k = 10.0
+        self.assertEqual(self.a.output[0].k, 10.0)
+        self.assertEqual(self.b.input[0].k, 10.0)
+        self.b.input[0].k = 5.0
+        self.assertEqual(self.a.output[0].k, 5.0)
+        self.assertEqual(self.b.input[0].k, 5.0)
 
     def test_degree(self):
         self.assertEqual(self.a.degree, 1)
@@ -25,7 +35,7 @@ class TestEdge(unittest.TestCase):
     
     a = grn.Node('A', beta=1.0)
     b = grn.Node('B', beta=1.0)
-    edge = grn.Edge(a, b, k_xy=1.0)
+    edge = grn.Edge(a, b, k_xy=1.0, n=2.0)
 
     def test_hill_activator(self):
         self.a.mode = 'activator'
@@ -42,10 +52,8 @@ class TestEdge(unittest.TestCase):
         self.a.mode = 'repressor'
         self.a.pop = 0
         self.assertAlmostEqual(self.edge.hill(), self.b.beta, delta=1e-5)
-
         self.a.pop = 1
         self.assertEqual(self.edge.hill(), self.b.beta/2)
-        
         self.a.pop = 10000
         self.assertAlmostEqual(self.edge.hill(), 0.0, delta=1e-5)
 
@@ -71,5 +79,5 @@ class TestZincFingerGRN(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=3)
+    unittest.main()
 

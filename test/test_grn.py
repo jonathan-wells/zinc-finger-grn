@@ -95,6 +95,9 @@ class TestZincFingerGRN(unittest.TestCase):
         self.assertEqual(len(G.nodes), 3)
         self.assertEqual(len(G.edges), 4)
 
+    def test_getitem(self):
+        self.assertEqual(self.znf_grn[1], self.znf_grn.tfs[0])
+
 
 if __name__ == '__main__':
     unittest.main()

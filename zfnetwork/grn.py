@@ -16,9 +16,7 @@ class Node:
                  pop=0.0, 
                  beta=1.0, 
                  gamma=0.1, 
-                 mode=None,
-                 input=None, 
-                 output=None):
+                 mode=None):
         """Node constructor
 
         Args:
@@ -41,20 +39,12 @@ class Node:
         self.beta = beta
         self.gamma = gamma
         self.mode = mode
-        if input:
-            self.input = input
-        else:
-            self.input = []
-        if output:
-            self.output = output
-        else:
-            self.output = []
+        self.input = []
+        self.output = []
 
     def add_edge(self, other, k_xy=1.0, n=2.0):
         """Add directed edge between self and other node"""
-        edge = Edge(self, other, k_xy=k_xy, n=n)
-        self.output.append(edge)
-        other.input.append(edge)
+        Edge(self, other, k_xy=k_xy, n=n)
 
     @property
     def degree(self):
@@ -89,6 +79,8 @@ class Edge:
         self.y = node_y
         self.k = k_xy
         self.n = n
+        self.x.output.append(self)
+        self.y.input.append(self)
     
     def hill(self):
         """Return output of Hill equation for node_x acting on node_y."""
@@ -124,6 +116,10 @@ class ZincFingerGRN:
         self.tes = [Node(f'TE_{i}') for i in range(self.n_tes)]
         self.het = []
         self.edges = []
+    
+    @property
+    def nodes(self):
+        return self.tfs + self.zfs + self.het + self.tes
 
     def from_edge_list(self, edge_list, node_types):
         """Constructs network from list of edges.
@@ -196,11 +192,28 @@ class ZincFingerGRN:
                     elif node_i.ntype == 'ZF':
                         self.add_zf_edge(node_i, node_j)
     
-    @property
-    def nodes(self):
-        return self.tfs + self.zfs + self.het + self.tes
+    def save_state(self):
+        statedict = {}
+        statedict['nodes'] = {}
+        statedict['edges'] = {}
+        statedict['nodes']['pop'] = [node.pop for node in self.nodes]
+        statedict['nodes']['beta'] = [node.beta for node in self.nodes]
+        statedict['nodes']['gamma'] = [node.gamma for node in self.nodes]
+        statedict['edges']['k'] = [edge.k for edge in self.edges]
+        statedict['edges']['n'] = [edge.n for edge in self.edges]
+        return statedict
+
+    def load_state(self, statedict):
+        for i, node in enumerate(self.nodes):
+            node.pop = statedict['nodes']['pop'][i]
+            node.beta = statedict['nodes']['beta'][i]
+            node.gamma = statedict['nodes']['gamma'][i]
+        for i, edge in enumerate(self.edges):
+            edge.k = statedict['edges']['k'][i]
+            edge.n = statedict['edges']['n'][i]
     
     def _extract_zf_edges(self):
+        """Private method to extract ZF edge labels for networkx constructor."""
         edges = []
         for zf_node in self.zfs:
             for edge in zf_node.output:
@@ -209,6 +222,7 @@ class ZincFingerGRN:
         return edges
     
     def _extract_tf_edges(self):
+        """Private method to extract TF edge labels for networkx constructor."""
         edges = []
         for tf_node in self.tfs:
             for edge in tf_node.output:
@@ -241,6 +255,11 @@ class ZincFingerGRN:
         nx.draw_networkx_edges(G, edgelist=self._extract_zf_edges(), pos=layout, edge_color='red',
                                arrowstyle=ArrowStyle.BarAB(widthA=0.0, widthB=0.5))
         plt.show()
+
+    def __getitem__(self, label):
+        for node in self.nodes:
+            if node.label == label:
+                return node
 
     def __repr__(self):
         node_string = ''
